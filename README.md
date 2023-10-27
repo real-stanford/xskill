@@ -9,7 +9,7 @@
 [Project Page](https://xskill.cs.columbia.edu/)|[arxiv](https://arxiv.org/pdf/2307.09955.pdf)
 
 This repository contains code for training and evaluating XSkill in both simulation and real-world settings.
-
+![Teaser Image](XSkill_teaser.png)
 
 ## 🚀 Installation
 
