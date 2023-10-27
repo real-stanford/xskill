@@ -1,0 +1,13 @@
+base_dev_dir: null
+
+hydra:
+  run:
+    dir: '${base_dev_dir}/xskill/experiment/label_sim_kitchen/${now:%Y-%m-%d_%H-%M-%S}'
+
+resize_shape: [124,124]
+data_path: ${base_dev_dir}/xskill/datasets/kitchen_dataset
+exp_path: null
+ckpt: 79
+device: 'cuda:0'
+plot_top_k: null
+verbose: True

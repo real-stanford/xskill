@@ -1,0 +1,133 @@
+base_dev_dir: null
+hydra.job.config.save_dir: null
+save_dir: '${base_dev_dir}/xskill/experiment/diffusion_bc/kitchen/'
+
+project_name: 'kitchen_prototype_diffusion_bc'
+num_epochs: 200
+lr: 1e-4
+weight_decay: 1e-6
+ckpt_frequency: 500
+
+seed: 43
+
+pred_horizon: 16
+obs_horizon: 2
+action_horizon: 8 
+proto_horizon: 1
+
+
+batch_size: 128
+num_workers: 0
+pin_memory: False
+persistent_workers: False
+
+
+#env setup
+obs_dim: 9
+action_dim: 9
+proto_dim: 256
+vision_feature_dim: 64
+bc_resize: [112,112]
+pretrain_resize: [124,124]
+pretrain_pipeline: ["center_crop_112_112","normalize"]
+
+pretrain_path: null
+pretrain_ckpt: 79
+# dataset
+raw_representation: True
+prototype: False
+softmax_prototype: False
+one_hot_prototype: False
+upsample_proto: False
+dataset:
+  _target_: xskill.dataset.diffusion_bc_dataset.KitchenBCDataset
+  resize_shape: ${bc_resize}
+  data_dirs: ['${base_dev_dir}/xskill/datasets/kitchen_dataset/robot']
+  proto_dirs: ${pretrain_path}/encode_protos/ckpt_${pretrain_ckpt}
+  pred_horizon: ${pred_horizon}
+  obs_horizon: ${obs_horizon}
+  action_horizon: ${action_horizon}
+  proto_horizon: ${proto_horizon}
+  raw_representation: ${raw_representation}
+  softmax_prototype: ${softmax_prototype}
+  prototype: ${prototype}
+  one_hot_prototype: ${one_hot_prototype}
+  prototype_snap: True
+  snap_frames: 100
+  mask: ${base_dev_dir}/xskill/datasets/kitchen_dataset/train_mask.json
+  obs_image_based: True
+  unnormal_list: ['proto_snap','protos']
+  seed: ${seed}
+
+upsample_proto_net:
+  _target_: xskill.model.network.Mlp
+  in_size: ${proto_dim}
+  out_size: 256
+  net_arch: []
+
+proto_pred_net:
+  _target_: xskill.model.transformer.TorchTransformerProtoPredictor
+  query_dim: ${proto_dim} 
+  heads: 4
+  dim_feedforward: 512
+  n_layer: 16
+  proto_dim: ${proto_dim} 
+  use_encoder: True
+  input_dim: null
+  pos_encoder:
+    _target_: xskill.model.transformer.PositionalEncoding
+    size: ${proto_dim} 
+    max_len: 200
+    frequency: 10000
+
+
+# diffusion
+num_diffusion_iters: 60
+noise_pred_net:
+  _target_: xskill.model.diffusion_model.ConditionalUnet1D
+  input_dim: ${action_dim}
+  global_cond_dim: null
+
+noise_scheduler:
+  _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
+  num_train_timesteps: ${num_diffusion_iters}
+  beta_schedule: 'squaredcos_cap_v2'
+  clip_sample: True
+  prediction_type: 'epsilon'
+
+task_progess_ratio_list: [1]
+demo_type_list: ['robot','human']
+
+eval_callback:
+  _target_: xskill.utility.diffusion_bc_callback.visual_diffusion_bc_prediction_callback
+  raw_representation: ${raw_representation}
+  softmax_prototype: ${softmax_prototype}
+  prototype: ${prototype}
+  one_hot_prototype: ${one_hot_prototype}
+  snap_frames: ${dataset.snap_frames}
+  task_progess_ratio: -1
+  pretain_model_path: ${pretrain_path}
+  pretrain_model_ckpt: ${pretrain_ckpt}
+
+
+eval_cfg:
+  n_evaluations: 50
+  eval_frequency: 25
+  pretrain_path: ${pretrain_path}
+  pretrain_ckpt: ${pretrain_ckpt}
+  bc_resize: ${bc_resize}
+  pretrain_pipeline: ${pretrain_pipeline}
+  resize_shape: ${pretrain_resize} # resize shape for pretrain
+  eval_mask_path: ${base_dev_dir}/xskill/datasets/kitchen_dataset/eval_mask.json
+  demo_path: ${base_dev_dir}/xskill/datasets/kitchen_dataset/
+  demo_item: 247
+  demo_type: 'human'
+
+  max_steps: 275
+  obs_horizon: ${obs_horizon}
+  pred_horizon: ${pred_horizon}
+  action_dim: ${action_dim}
+  action_horizon: ${action_horizon}
+  proto_horizon: ${proto_horizon}
+  upsample_proto: ${upsample_proto}
+  num_diffusion_iters: ${num_diffusion_iters}

@@ -1,0 +1,11 @@
+hydra:
+  output_subdir: null
+  
+base_dev_dir: null
+
+dataset_dir: '${base_dev_dir}/xskill/datasets/kitchen/kitchen_demos_multitask'
+start_eps: 600
+end_eps: 604
+res: 384
+embodiment: 'robot'
+save_dir: '${base_dev_dir}/xskill/datasets/kitchen_dataset/${embodiment}'

@@ -1,0 +1,136 @@
+base_dev_dir: null
+
+hydra:
+  run:
+    dir: '${base_dev_dir}/xskill/experiment/pretrain/${now:%Y-%m-%d_%H-%M-%S}'
+
+seed: 45
+batch_size: 28
+num_workers: 14
+pin_memory: False
+persistent_workers: True
+drop_last: True
+
+resize_shape: [124,124]
+max_get_threads: 24
+robot_dataset:
+  _target_: xskill.dataset.dataset.EpisodeTrajDataset
+  _allowed_dirs: [
+    '${base_dev_dir}/xskill/datasets/kitchen_dataset/robot',
+  ]
+  vid_mask: '${base_dev_dir}/xskill/datasets/kitchen_dataset/train_mask.json'
+  frame_sampler:
+    _target_: xskill.dataset.frame_samplers.UniformDownSampleSampler
+    offset: 0
+    num_frames: 100
+    downsample_ratio: 1
+  slide: 8
+  resize_shape: ${resize_shape}
+  max_get_threads: ${max_get_threads}
+
+human_dataset:
+  _target_: xskill.dataset.dataset.EpisodeTrajDataset
+  _allowed_dirs: [
+    '${base_dev_dir}/xskill/datasets/kitchen_dataset/human',
+  ]
+  vid_mask: ${robot_dataset.vid_mask}
+  frame_sampler:
+    _target_: xskill.dataset.frame_samplers.UniformDownSampleSampler
+    offset: ${robot_dataset.frame_sampler.offset}
+    num_frames: ${robot_dataset.frame_sampler.num_frames}
+    downsample_ratio: ${robot_dataset.frame_sampler.downsample_ratio}
+  slide: ${robot_dataset.slide}
+  resize_shape: ${resize_shape}
+  max_get_threads: ${max_get_threads}
+
+
+augmentations: ['random_crop_112_112','color_jitter','grayscale','gaussian_blur','normalize']
+
+
+
+Trainer:
+  accelerator: "gpu"
+  devices: [0]
+  max_epochs: 81
+  enable_progress_bar: False
+  log_every_n_steps: 100
+
+n_layer: 8
+
+Model: 
+  _target_: xskill.model.core.Model
+  dim: 128
+  T: 0.1
+  clutser_T: ${Model.T}
+  epsilon: 0.03
+  stack_frames: 1
+  sinkhorn_iterations: 3
+  slide: ${robot_dataset.slide}
+  freeze_prototypes_epoch: 0
+  n_negative_samples: 16
+  reverse_augment: False
+  time_augment: True
+  swav_loss_coef: 0.5 
+  cluster_loss_coef: 1
+  lr: 1e-4
+  skill_prior_encoder: null
+  use_lr_scheduler: False
+  use_temperature_scheduler: False
+  positive_window: 4
+  negative_window: 12
+
+
+
+  skill_prior: 
+    _target_: xskill.model.encoder.VisualMotionPrior
+    out_size: 128
+    vision_only: True
+    vision_encoder:
+      _target_: xskill.model.encoder.CNN
+      out_size: ${Model.skill_prior.out_size}
+
+
+    nmb_prototypes: ${Model.dim}
+    normalize: False
+
+
+  encoder_q:
+    _target_: xskill.model.encoder.VisualMotionEncoder
+    vision_only: True
+    state_size: 256 # Final per state encoding dim df: 256
+    out_size: 256 # Final rep dim from temporal transformer df:256
+    vision_encoder:
+      _target_: xskill.model.encoder.CNN
+      out_size: ${Model.encoder_q.state_size}
+
+
+
+    nmb_prototypes: ${Model.dim}
+    normalize: True
+    start_end: True
+    goal_condition: False
+
+    temporal_transformer_encoder:
+      _target_: xskill.model.transformer.TorchTransformerEncoder
+      query_dim: ${Model.encoder_q.state_size} 
+      heads: 4
+      dim_feedforward: 512
+      n_layer: ${n_layer}
+      rep_dim: ${Model.encoder_q.out_size}
+      use_encoder: False
+      input_dim: null
+      pos_encoder:
+        _target_: xskill.model.transformer.PositionalEncoding
+        size: ${Model.encoder_q.state_size}
+        max_len: 10 
+        frequency: 10
+
+
+
+
+callback:
+  every_n_epoch: 10
+
+
+
+
